@@ -7,9 +7,43 @@
     "measure_power",
     "measure_power.production",
     "measure_power.alwayson",
-    "meter_power"
+    "meter_power",
+    "meter_power.imported",
+    "meter_power.exported"
   ],
   "capabilitiesOptions": {
+    "meter_power.imported": {
+      "title": {
+        "en": "Imported",
+        "nl": "Geïmporteerd",
+        "da": "Importeret",
+        "de": "Importiert",
+        "es": "Importado",
+        "fr": "Importé",
+        "it": "Importato",
+        "no": "Importert",
+        "sv": "Importerad",
+        "pl": "Zaimportowano",
+        "ru": "Импортировано",
+        "ko": "수입됨"
+      }
+    },
+    "meter_power.exported": {
+      "title": {
+        "en": "Exported",
+        "nl": "Geëxporteerd",
+        "da": "Eksporteret",
+        "de": "Exportiert",
+        "es": "Exportado",
+        "fr": "Exporté",
+        "it": "Esportato",
+        "no": "Eksportert",
+        "sv": "Exporterad",
+        "pl": "Wyeksportowano",
+        "ru": "Экспортировано",
+        "ko": "수출됨"
+      }
+    },
     "measure_power.production": {
       "title": {
         "en": "Production",
@@ -44,7 +78,9 @@
     }
   },
   "energy": {
-    "cumulative": true
+    "cumulative": true,
+    "cumulativeImportedCapability": "meter_power.imported",
+    "cumulativeExportedCapability": "meter_power.exported"
   },
   "$extends": [
     "defaults"

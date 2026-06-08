@@ -45,9 +45,13 @@ class GeniusDevice extends MqttDevice {
 
     this.log('[Sync]', JSON.stringify(data));
 
-    // Consumption power (MQTT)
+    // Net grid power (MQTT): positive = imported from grid, negative = exported.
+    // The Connect is the grid meter, so measure_power must be the NET grid flow for
+    // Homey's Energy flow direction to be correct (solar offsets consumption).
     if (this.hasCapability('measure_power') && 'consumptionPower' in data) {
-      this.setCapabilityValue('measure_power', data.consumptionPower).catch(this.error);
+      const solarPower = 'solarPower' in data ? data.solarPower : 0;
+
+      this.setCapabilityValue('measure_power', data.consumptionPower - solarPower).catch(this.error);
     }
 
     // Solar power (MQTT)
@@ -60,12 +64,28 @@ class GeniusDevice extends MqttDevice {
       this.setCapabilityValue('measure_power.alwayson', data.alwaysOn).catch(this.error);
     }
 
-    // Consumption (sync)
+    // Total consumption energy (sync) — required for Homey's "Home" consumption figure
     if (this.hasCapability('meter_power') && 'consumption' in data) {
-      let current = this.latestRecordTime ? this.getCapabilityValue('meter_power') : 0;
+      let current = this.latestRecordTime ? (this.getCapabilityValue('meter_power') || 0) : 0;
       current += data.consumption;
 
       this.setCapabilityValue('meter_power', current).catch(this.error);
+    }
+
+    // Imported energy (sync)
+    if (this.hasCapability('meter_power.imported') && 'gridImport' in data) {
+      let current = this.latestRecordTime ? (this.getCapabilityValue('meter_power.imported') || 0) : 0;
+      current += data.gridImport;
+
+      this.setCapabilityValue('meter_power.imported', current).catch(this.error);
+    }
+
+    // Exported energy (sync)
+    if (this.hasCapability('meter_power.exported') && 'gridExport' in data) {
+      let current = this.latestRecordTime ? (this.getCapabilityValue('meter_power.exported') || 0) : 0;
+      current += data.gridExport;
+
+      this.setCapabilityValue('meter_power.exported', current).catch(this.error);
     }
 
     this.unsetWarning().catch(this.error);
@@ -88,10 +108,33 @@ class GeniusDevice extends MqttDevice {
   async migrate() {
     this.log('[Migrate] Started');
 
-    // Add `meter_power` capability
+    // One-time: restore the `sensor` class (some devices were manually set to
+    // `solarpanel`, which makes Homey Energy read consumption as production)
+    if (!this.getStoreValue('class_migrated')) {
+      if (this.getClass() !== 'sensor') {
+        await this.setClass('sensor').catch(this.error);
+        this.log(`[Migrate] Reset class from \`${this.getClass()}\` to \`sensor\``);
+      }
+
+      await this.setStoreValue('class_migrated', true).catch(this.error);
+    }
+
+    // Ensure total-consumption `meter_power` exists (drives Homey's "Home" consumption)
     if (!this.hasCapability('meter_power')) {
-      await this.addCapability('meter_power');
+      await this.addCapability('meter_power').catch(this.error);
       this.log('[Migrate] Added `meter_power` capability');
+    }
+
+    // Add `meter_power.imported` capability
+    if (!this.hasCapability('meter_power.imported')) {
+      await this.addCapability('meter_power.imported').catch(this.error);
+      this.log('[Migrate] Added `meter_power.imported` capability');
+    }
+
+    // Add `meter_power.exported` capability
+    if (!this.hasCapability('meter_power.exported')) {
+      await this.addCapability('meter_power.exported').catch(this.error);
+      this.log('[Migrate] Added `meter_power.exported` capability');
     }
 
     this.log('[Migrate] Finished');

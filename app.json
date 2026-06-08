@@ -2,7 +2,7 @@
   "_comment": "This file is generated. Please edit .homeycompose/app.json instead.",
   "id": "com.smappee",
   "version": "1.4.0",
-  "compatibility": ">=12.0.0",
+  "compatibility": ">=12.4.5",
   "platforms": [
     "local"
   ],
@@ -779,9 +779,44 @@
       "capabilities": [
         "measure_power",
         "measure_power.production",
-        "measure_power.alwayson"
+        "measure_power.alwayson",
+        "meter_power",
+        "meter_power.imported",
+        "meter_power.exported"
       ],
       "capabilitiesOptions": {
+        "meter_power.imported": {
+          "title": {
+            "en": "Imported",
+            "nl": "Geïmporteerd",
+            "da": "Importeret",
+            "de": "Importiert",
+            "es": "Importado",
+            "fr": "Importé",
+            "it": "Importato",
+            "no": "Importert",
+            "sv": "Importerad",
+            "pl": "Zaimportowano",
+            "ru": "Импортировано",
+            "ko": "수입됨"
+          }
+        },
+        "meter_power.exported": {
+          "title": {
+            "en": "Exported",
+            "nl": "Geëxporteerd",
+            "da": "Eksporteret",
+            "de": "Exportiert",
+            "es": "Exportado",
+            "fr": "Exporté",
+            "it": "Esportato",
+            "no": "Eksportert",
+            "sv": "Exporterad",
+            "pl": "Wyeksportowano",
+            "ru": "Экспортировано",
+            "ko": "수출됨"
+          }
+        },
         "measure_power.production": {
           "title": {
             "en": "Production",
@@ -816,7 +851,9 @@
         }
       },
       "energy": {
-        "cumulative": true
+        "cumulative": true,
+        "cumulativeImportedCapability": "meter_power.imported",
+        "cumulativeExportedCapability": "meter_power.exported"
       },
       "id": "connect"
     },
@@ -1380,13 +1417,36 @@
       },
       "class": "evcharger",
       "capabilities": [
+        "evcharger_charging_state",
         "measure_power",
-        "meter_power",
+        "meter_power.charged",
         "dim",
         "cable_connected",
         "charging",
         "charging_mode"
       ],
+      "capabilitiesOptions": {
+        "meter_power.charged": {
+          "title": {
+            "en": "Charged",
+            "nl": "Opgeladen",
+            "da": "Opladet",
+            "de": "Geladen",
+            "es": "Cargado",
+            "fr": "Énergie chargée",
+            "it": "Caricato",
+            "no": "Ladet",
+            "sv": "Laddad",
+            "pl": "Naładowano",
+            "ru": "Заряжено",
+            "ko": "충전됨"
+          }
+        }
+      },
+      "energy": {
+        "evCharger": true,
+        "meterPowerImportedCapability": "meter_power.charged"
+      },
       "id": "ev-wall"
     },
     {
@@ -1889,9 +1949,43 @@
         "measure_power",
         "measure_power.production",
         "measure_power.alwayson",
-        "meter_power"
+        "meter_power",
+        "meter_power.imported",
+        "meter_power.exported"
       ],
       "capabilitiesOptions": {
+        "meter_power.imported": {
+          "title": {
+            "en": "Imported",
+            "nl": "Geïmporteerd",
+            "da": "Importeret",
+            "de": "Importiert",
+            "es": "Importado",
+            "fr": "Importé",
+            "it": "Importato",
+            "no": "Importert",
+            "sv": "Importerad",
+            "pl": "Zaimportowano",
+            "ru": "Импортировано",
+            "ko": "수입됨"
+          }
+        },
+        "meter_power.exported": {
+          "title": {
+            "en": "Exported",
+            "nl": "Geëxporteerd",
+            "da": "Eksporteret",
+            "de": "Exportiert",
+            "es": "Exportado",
+            "fr": "Exporté",
+            "it": "Esportato",
+            "no": "Eksportert",
+            "sv": "Exporterad",
+            "pl": "Wyeksportowano",
+            "ru": "Экспортировано",
+            "ko": "수출됨"
+          }
+        },
         "measure_power.production": {
           "title": {
             "en": "Production",
@@ -1926,7 +2020,9 @@
         }
       },
       "energy": {
-        "cumulative": true
+        "cumulative": true,
+        "cumulativeImportedCapability": "meter_power.imported",
+        "cumulativeExportedCapability": "meter_power.exported"
       },
       "id": "genius"
     },
@@ -2385,9 +2481,43 @@
         "measure_power",
         "measure_power.production",
         "measure_power.alwayson",
-        "meter_power"
+        "meter_power",
+        "meter_power.imported",
+        "meter_power.exported"
       ],
       "capabilitiesOptions": {
+        "meter_power.imported": {
+          "title": {
+            "en": "Imported",
+            "nl": "Geïmporteerd",
+            "da": "Importeret",
+            "de": "Importiert",
+            "es": "Importado",
+            "fr": "Importé",
+            "it": "Importato",
+            "no": "Importert",
+            "sv": "Importerad",
+            "pl": "Zaimportowano",
+            "ru": "Импортировано",
+            "ko": "수입됨"
+          }
+        },
+        "meter_power.exported": {
+          "title": {
+            "en": "Exported",
+            "nl": "Geëxporteerd",
+            "da": "Eksporteret",
+            "de": "Exportiert",
+            "es": "Exportado",
+            "fr": "Exporté",
+            "it": "Esportato",
+            "no": "Eksportert",
+            "sv": "Exporterad",
+            "pl": "Wyeksportowano",
+            "ru": "Экспортировано",
+            "ko": "수출됨"
+          }
+        },
         "measure_power.production": {
           "title": {
             "en": "Production",
@@ -2422,7 +2552,9 @@
         }
       },
       "energy": {
-        "cumulative": true
+        "cumulative": true,
+        "cumulativeImportedCapability": "meter_power.imported",
+        "cumulativeExportedCapability": "meter_power.exported"
       },
       "id": "plus"
     },

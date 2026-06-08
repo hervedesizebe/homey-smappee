@@ -4,13 +4,36 @@
   },
   "class": "evcharger",
   "capabilities": [
+    "evcharger_charging_state",
     "measure_power",
-    "meter_power",
+    "meter_power.charged",
     "dim",
     "cable_connected",
     "charging",
     "charging_mode"
   ],
+  "capabilitiesOptions": {
+    "meter_power.charged": {
+      "title": {
+        "en": "Charged",
+        "nl": "Opgeladen",
+        "da": "Opladet",
+        "de": "Geladen",
+        "es": "Cargado",
+        "fr": "Énergie chargée",
+        "it": "Caricato",
+        "no": "Ladet",
+        "sv": "Laddad",
+        "pl": "Naładowano",
+        "ru": "Заряжено",
+        "ko": "충전됨"
+      }
+    }
+  },
+  "energy": {
+    "evCharger": true,
+    "meterPowerImportedCapability": "meter_power.charged"
+  },
   "$extends": [
     "defaults"
   ]
