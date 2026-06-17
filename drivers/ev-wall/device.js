@@ -167,42 +167,55 @@ class EVWallDevice extends MqttDevice {
   }
 
   // Derive the charger's own power/energy from the whole-home monitor's `channelData`.
-  // The charger sits on a dedicated multi-phase CT: those channels read ~0 when idle and
-  // jump when charging. We auto-learn them (the metering-configuration API is unavailable),
-  // then sum them for `measure_power` and integrate over time for `meter_power`.
+  // The charger sits on a dedicated multi-phase CT, so its channels read ~0 whenever the
+  // car is NOT charging and jump when it is. We learn them by tracking, per channel, the
+  // max power ever seen while idle (`idle_max`): a charger channel is one that stays ~0 at
+  // idle AND is significant while charging. This excludes grid/house channels (which draw
+  // power during the day) and self-heals if one was previously mis-detected.
+  static IDLE_MAX_W = 120; // a charger CT channel never exceeds this while not charging
+  static CHARGE_MIN_W = 1000; // a charging phase clearly exceeds this
+
   handleChargerPower(data) {
     if (blank(data) || !Array.isArray(data.channelData)) return;
 
     const channels = data.channelData;
     const charging = this.getCapabilityValue('charging') === true;
-
-    // Restore the idle snapshot from store after a restart
-    if (!Array.isArray(this._idleChannels)) {
-      this._idleChannels = this.getStoreValue('idle_channels');
-    }
+    const idleMax = this.getStoreValue('idle_max') || [];
 
     if (!charging) {
-      // Keep (and persist, throttled) the latest idle snapshot for channel detection
-      this._idleChannels = channels;
-
-      if (!this._idlePersistTs || (data.utcEndtime - this._idlePersistTs) > 60000) {
-        this.setStoreValue('idle_channels', channels).catch(this.error);
-        this._idlePersistTs = data.utcEndtime;
-      }
-    } else if (Array.isArray(this._idleChannels)) {
-      // Union detection: a charger phase reads ~0 when idle and is significant while
-      // charging. Charging ramps up gradually, so we keep merging phases as they appear.
-      const stored = this.getStoreValue('charger_channels') || [];
-      const set = new Set(stored);
+      // Track the running max absolute power per channel while idle (persist, throttled)
+      let changed = false;
 
       for (let i = 0; i < channels.length; i++) {
-        if (channels[i] > 500 && (this._idleChannels[i] || 0) < 100) set.add(i);
+        const abs = Math.abs(channels[i] || 0);
+        if (abs > (idleMax[i] || 0)) {
+          idleMax[i] = abs;
+          changed = true;
+        }
       }
 
-      if (set.size !== stored.length) {
-        const merged = [...set].sort((a, b) => a - b);
-        this.setStoreValue('charger_channels', merged).catch(this.error);
-        this.log('[Charger] Power channels:', JSON.stringify(merged));
+      if (changed && (!this._idleMaxTs || (data.utcEndtime - this._idleMaxTs) > 60000)) {
+        this.setStoreValue('idle_max', idleMax).catch(this.error);
+        this._idleMaxTs = data.utcEndtime;
+      }
+    } else {
+      // While charging, (re)derive the charger channels: significant now AND consistently
+      // ~0 at idle. Re-evaluating every message both catches ramp-up and drops any channel
+      // later found to carry idle load (self-cleaning against earlier mis-detection).
+      const stored = this.getStoreValue('charger_channels') || [];
+      const set = new Set(stored.filter((i) => (idleMax[i] || 0) < this.constructor.IDLE_MAX_W));
+
+      for (let i = 0; i < channels.length; i++) {
+        if (channels[i] > this.constructor.CHARGE_MIN_W && (idleMax[i] || 0) < this.constructor.IDLE_MAX_W) {
+          set.add(i);
+        }
+      }
+
+      const detected = [...set].sort((a, b) => a - b);
+
+      if (JSON.stringify(detected) !== JSON.stringify(stored)) {
+        this.setStoreValue('charger_channels', detected).catch(this.error);
+        this.log('[Charger] Power channels:', JSON.stringify(detected));
       }
     }
 
@@ -212,7 +225,7 @@ class EVWallDevice extends MqttDevice {
     let power = 0;
 
     if (charging && Array.isArray(chargerChannels) && filled(chargerChannels)) {
-      power = chargerChannels.reduce((sum, i) => sum + (channels[i] || 0), 0);
+      power = chargerChannels.reduce((sum, i) => sum + Math.max(0, channels[i] || 0), 0);
     }
 
     power = Math.max(0, Math.round(power));
@@ -317,6 +330,22 @@ class EVWallDevice extends MqttDevice {
     if (this.hasCapability('measure_power.alwayson')) {
       await this.removeCapability('measure_power.alwayson').catch(this.error);
       this.log('[Migrate] Removed `measure_power.alwayson` capability');
+    }
+
+    // One-time: the previous union-based channel detection could merge grid phases into
+    // the charger channels (overcounting the charged energy). Clear it and reset the
+    // inflated meter so the new idle-max-gated detection can re-learn cleanly.
+    if (!this.getStoreValue('charger_channels_reset')) {
+      await this.unsetStoreValue('charger_channels').catch(this.error);
+      await this.unsetStoreValue('idle_channels').catch(this.error);
+      await this.unsetStoreValue('idle_max').catch(this.error);
+
+      if (this.hasCapability('meter_power.charged')) {
+        await this.setCapabilityValue('meter_power.charged', 0).catch(this.error);
+      }
+
+      await this.setStoreValue('charger_channels_reset', true).catch(this.error);
+      this.log('[Migrate] Reset charger channel detection + charged meter');
     }
 
     this.log('[Migrate] Finished');
