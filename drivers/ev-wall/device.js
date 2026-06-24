@@ -180,15 +180,19 @@ class EVWallDevice extends MqttDevice {
 
     const channels = data.channelData;
     const charging = this.getCapabilityValue('charging') === true;
+    const cableConnected = this.getCapabilityValue('cable_connected') === true;
     const idleMax = this.getStoreValue('idle_max') || [];
 
-    if (!charging) {
-      // Track the running max absolute power per channel while idle (persist, throttled)
+    if (!cableConnected) {
+      // Car unplugged → the charger's CT channels are physically 0 now. This is the only
+      // reliable idle reference (a connected-but-not-charging car can still draw and would
+      // poison the baseline). Track the running max abs power per channel (persist, throttled).
       let changed = false;
 
       for (let i = 0; i < channels.length; i++) {
         const abs = Math.abs(channels[i] || 0);
-        if (abs > (idleMax[i] || 0)) {
+        // Set on first observation (defines the baseline) or raise the running max
+        if (typeof idleMax[i] !== 'number' || abs > idleMax[i]) {
           idleMax[i] = abs;
           changed = true;
         }
@@ -198,17 +202,16 @@ class EVWallDevice extends MqttDevice {
         this.setStoreValue('idle_max', idleMax).catch(this.error);
         this._idleMaxTs = data.utcEndtime;
       }
-    } else {
-      // While charging, (re)derive the charger channels: significant now AND consistently
-      // ~0 at idle. Re-evaluating every message both catches ramp-up and drops any channel
-      // later found to carry idle load (self-cleaning against earlier mis-detection).
+    } else if (charging && filled(idleMax)) {
+      // While charging (and only once we have an unplugged baseline), the charger channels
+      // are those significant now AND ~0 when unplugged. Re-evaluating each message catches
+      // ramp-up and self-cleans channels later found to carry idle load.
+      const within = (i) => typeof idleMax[i] === 'number' && idleMax[i] < this.constructor.IDLE_MAX_W;
       const stored = this.getStoreValue('charger_channels') || [];
-      const set = new Set(stored.filter((i) => (idleMax[i] || 0) < this.constructor.IDLE_MAX_W));
+      const set = new Set(stored.filter(within));
 
       for (let i = 0; i < channels.length; i++) {
-        if (channels[i] > this.constructor.CHARGE_MIN_W && (idleMax[i] || 0) < this.constructor.IDLE_MAX_W) {
-          set.add(i);
-        }
+        if (channels[i] > this.constructor.CHARGE_MIN_W && within(i)) set.add(i);
       }
 
       const detected = [...set].sort((a, b) => a - b);
@@ -346,6 +349,17 @@ class EVWallDevice extends MqttDevice {
 
       await this.setStoreValue('charger_channels_reset', true).catch(this.error);
       this.log('[Migrate] Reset charger channel detection + charged meter');
+    }
+
+    // One-time: the idle-max baseline was sampled whenever not charging, so a connected-
+    // but-not-charging car poisoned the charger channels' idle_max (they ended up excluded,
+    // giving 0 W). Clear it so the new "sample idle only while unplugged" logic re-learns.
+    if (!this.getStoreValue('charger_channels_reset2')) {
+      await this.unsetStoreValue('charger_channels').catch(this.error);
+      await this.unsetStoreValue('idle_max').catch(this.error);
+
+      await this.setStoreValue('charger_channels_reset2', true).catch(this.error);
+      this.log('[Migrate] Reset charger idle-max baseline (unplugged-only sampling)');
     }
 
     this.log('[Migrate] Finished');
